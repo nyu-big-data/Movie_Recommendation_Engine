@@ -34,7 +34,7 @@ def main(spark):
     training_data = ratings2.sampleBy("train_val_test", fractions={'train':1, 'validation': 0.3, 'test': 0.3}, seed=1234)
 
     #Difference the tables to get all the holdout rows
-    exceptAll_df = ratings2.exceptAll(training_data).show()
+    exceptAll_df = ratings2.exceptAll(training_data)
 
     #Get validation and test data
     validation_data = exceptAll_df.where(exceptAll_df["train_val_test"] == "validation")
