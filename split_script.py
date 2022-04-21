@@ -33,13 +33,21 @@ def main(spark):
     #Per Brian's suggestion in Brightspace discussion tab, training data will have 100% of reviews for users in training, 30% for users in validation, and 30% for users in test
     training_data = ratings2.sampleBy("train_val_test", fractions={'train':1, 'validation': 0.3, 'test': 0.3}, seed=1234)
 
+    #Difference the tables to get all the holdout rows
+    exceptAll_df = ratings2.exceptAll(training_data).show()
+
+    #Get validation and test data
+    validation_data = exceptAll_df.where(exceptAll_df["train_val_test"] == "validation")
+    test_data = exceptAll_df.where(exceptAll_df["train_val_test"] == "test")
+
     #Save to HDFS
-    #training_data.write.csv('training_data.csv')
+    training_data.write.csv('small_datasets/training_data.csv')
+    validation_data.write.csv('small_datasets/validation_data.csv')
+    test_data.write.csv('small_datasets/test_data.csv')
 
     #Get count of results
     training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()
 
-    ratings2.exceptAll(training_data).show()
 
 # Only enter this block if we're in main
 if __name__ == "__main__":
