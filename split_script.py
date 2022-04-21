@@ -28,7 +28,7 @@ def main(spark):
 
     training_data = ratings2.sampleBy("train_val_test", fractions={'train':1, 'validation': 0.3, 'test': 0.3}, seed=1234)
 
-    training_data.write.option("header","true").csv(f'hdfs:/user/el3418/training_data.csv')
+    training_data.write.csv('training_data.csv')
 
     training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()
 
