@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import countDistinct
-
+from pyspark.sql.functions import when, lit, col
 
 def main(spark):
     '''Main routine for run for Storage optimization template.
@@ -12,21 +12,14 @@ def main(spark):
     #####--------------YOUR CODE STARTS HERE--------------#####
 
     #Use this template to as much as you want for your parquet saving and optimizations!
-    links = spark.read.csv(f'hdfs:/user/el3418/ml-latest-small/links.csv')
-    print('links.csv schema')
-    links.printSchema()
-
-    movies = spark.read.csv(f'hdfs:/user/el3418/ml-latest-small/movies.csv')
-    print('movies.csv schema')
-    movies.printSchema()
-
-    ratings = spark.read.csv(f'hdfs:/user/el3418/ml-latest-small/ratings.csv')
+    #ratings = spark.read.csv(f'hdfs:/user/el3418/ml-latest-small/ratings.csv', schema='userId INT, movieId INT, rating DOUBLE, timestamp INT')
+    ratings = spark.read.option("header",True).csv(f'hdfs:/user/el3418/ml-latest-small/ratings.csv')
     print('ratings.csv schema')
     ratings.printSchema()
 
-    tags = spark.read.csv(f'hdfs:/user/el3418/ml-latest-small/tags.csv')
-    print('tags.csv schema')
-    tags.printSchema()
+    len(list(ratings.select('userId').distinct().toPandas()['userId']))
+
+    #ratings2 = ratings.withColumn("train_val_test", when(col("userId") >=40000 & col("Salary") <= 50000,lit("100")).otherwise(lit("200")))
 
 # Only enter this block if we're in main
 if __name__ == "__main__":
