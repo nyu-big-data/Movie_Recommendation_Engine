@@ -39,7 +39,7 @@ def main(spark):
     #Get count of results
     training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()
 
-    ratings.subtract(training_data).show()
+    ratings2.exceptAll(training_data).show()
 
 # Only enter this block if we're in main
 if __name__ == "__main__":
