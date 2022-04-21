@@ -17,7 +17,8 @@ def main(spark):
     print('ratings.csv schema')
     ratings.printSchema()
 
-    len(list(ratings.select('userId').distinct().toPandas()['userId']))
+    print('Number of unique userIds')
+    print(len(list(ratings.select('userId').distinct().toPandas()['userId'])))
 
     #ratings2 = ratings.withColumn("train_val_test", when(col("userId") >=40000 & col("Salary") <= 50000,lit("100")).otherwise(lit("200")))
 
