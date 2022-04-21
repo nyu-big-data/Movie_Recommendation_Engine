@@ -24,7 +24,7 @@ def main(spark):
     validation = uniqueIds[400:500]
     test = uniqueIds[500:]
 
-    ratings2 = ratings.withColumn("train_val_test", when(col("userId") in train,lit("train")).when(col("userId") in validation, lit("validation")).otherwise(lit("test")))
+    ratings2 = ratings.withColumn("train_val_test", when(col("userId").isin(train),lit("train")).when(col("userId").isin(validation), lit("validation")).otherwise(lit("test")))
 
     training_data = ratings2.sampleBy("train_val_test", fractions={'train':1, 'validation': 0.3, 'test': 0.3}, seed=1234)
 
