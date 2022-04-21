@@ -41,9 +41,9 @@ def main(spark):
     test_data = exceptAll_df.where(exceptAll_df["train_val_test"] == "test")
 
     #Save to HDFS
-    training_data.write.csv('small_datasets/training_data.csv')
-    validation_data.write.csv('small_datasets/validation_data.csv')
-    test_data.write.csv('small_datasets/test_data.csv')
+    training_data.write.csv('training_data.csv')
+    validation_data.write.csv('validation_data.csv')
+    test_data.write.csv('test_data.csv')
 
     #Get count of results
     training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()
