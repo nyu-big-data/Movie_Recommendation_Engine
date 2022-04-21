@@ -17,10 +17,20 @@ def main(spark):
     print('ratings.csv schema')
     ratings.printSchema()
 
+    #There are 610 unique Ids, but the docs say 600
     print('Number of unique userIds')
-    print(len(list(ratings.select('userId').distinct().toPandas()['userId'])))
+    uniqueIds = list(ratings.select('userId').distinct().toPandas()['userId'])
+    train = uniqueIds[:400]
+    validation = uniqueIds[400:500]
+    test = uniqueIds[500:]
 
-    #ratings2 = ratings.withColumn("train_val_test", when(col("userId") >=40000 & col("Salary") <= 50000,lit("100")).otherwise(lit("200")))
+    ratings2 = ratings.withColumn("train_val_test", when(col("userId") in train,lit("train")).when(col("userId") in validation, lit("validation")).otherwise(lit("test")))
+
+    training_data = ratings2.sampleBy("train_val_test", fractions={'train':1, 'validation': 0.3, 'test': 0.3}, seed=1234)
+
+    training_data.write.option("header","true").csv(f'hdfs:/user/el3418/training_data')
+
+    training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()
 
 # Only enter this block if we're in main
 if __name__ == "__main__":
