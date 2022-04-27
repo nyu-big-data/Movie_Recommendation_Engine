@@ -23,9 +23,9 @@ def main(spark):
 
     #Split uniqueIds based on index slicing
     uniqueIds = list(ratings.select('userId').distinct().toPandas()['userId'])
-    train = uniqueIds[:400]
-    validation = uniqueIds[400:500]
-    test = uniqueIds[500:]
+    train = uniqueIds[:180000]
+    validation = uniqueIds[180000:230000]
+    test = uniqueIds[230000:]
 
     #Create a new column in the dataframe. Every row will have value 'train' for userId in the train list, 'validation' for userId in the validation list, and 'test' for userId in the test list
     ratings2 = ratings.withColumn("train_val_test", when(col("userId").isin(train),lit("train")).when(col("userId").isin(validation), lit("validation")).otherwise(lit("test")))
