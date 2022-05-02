@@ -1,6 +1,8 @@
 # Baseline
 - Validation accuracy: 0.5312599427298759  
 - Test accuracy: 0.6236482753177046
+- Validation mAP: 0.0006
+- Test mAP: 0.0007
 
 # ALS
 Params:  
