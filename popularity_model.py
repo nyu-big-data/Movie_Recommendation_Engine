@@ -12,13 +12,26 @@ def weighted_rating(v,r, per, avg):
     """
     return float((v/(v+per) * r) + (per/(per+v) * avg))
 
-def top_k_accuracy(top_k_recommendations, user_labels):
+def hit_ratio(top_k_recommendations, user_labels):
     count = 0
     for movie_id in user_labels:
         if movie_id in top_k_recommendations:
             count+=1
     
     return count/len(user_labels)
+
+def mAP(top_k_recommendations, user_labels):
+    ap = 0
+    for movie_id in user_labels:
+        running_sum = 0
+        for rank, r in enumerate(top_k_recommendations):
+            if r == movie_id:
+                running_sum = 1 + 1/(rank+1)
+                break 
+        ap += (running_sum/len(top_k_recommendations))
+    
+    return ap/len(user_labels)
+            
 
 
 
@@ -51,7 +64,8 @@ def main(spark):
     val_ratings = val_ratings.withColumn('rating', val_ratings['rating'].cast(DoubleType()))
     val_ratings = val_ratings.select('movieId').collect()
     val_ratings = np.array(val_ratings).reshape(-1)
-    val_acc = top_k_accuracy(movie_ids, val_ratings)
+    val_acc = hit_ratio(movie_ids, val_ratings)
+    val_map = mAP(movie_ids, val_ratings)
 
     ## Read the Test File
     test_ratings = spark.read.option("header", False).csv('hdfs:/user/hb2474/test_data_small.csv')
@@ -59,10 +73,13 @@ def main(spark):
     test_ratings = test_ratings.withColumn('rating', test_ratings['rating'].cast(DoubleType()))
     test_ratings = test_ratings.select('movieId').collect()
     test_ratings = np.array(test_ratings).reshape(-1)
-    test_acc = top_k_accuracy(movie_ids, test_ratings)
+    test_acc = hit_ratio(movie_ids, test_ratings)
+    test_map = mAP(movie_ids, test_ratings)
     
     print('Validation Acc:{}'.format(val_acc))
+    print('Val. mAP:{}'.format(val_map))
     print('Test Acc:{}'.format(test_acc))
+    print('Test mAP:{}'.format(test_map))
 
 
 if __name__ == "__main__":
