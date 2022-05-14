@@ -1,9 +1,8 @@
-import numpy as np
-from lightfm.data import Dataset
-from lightfm.evaluation import precision_at_k
-from lightfm import LightFM
-import pandas as pd
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import when, lit, col
 import scipy.sparse as sp
+import numpy as np
+import pandas as pd
 
 def get_df_matrix_mappings(df, row_name, col_name):
     """Map entities in interactions df to row and column indices
@@ -74,6 +73,7 @@ def df_to_matrix(df, row_name, col_name):
     interactions = interactions.tocsr()
     return interactions, rid_to_idx, idx_to_rid, cid_to_idx, idx_to_cid
 
+
 def train_test_split(interactions, split_count, fraction=None):
     """
     Split recommendation data into train and test sets
@@ -91,7 +91,6 @@ def train_test_split(interactions, split_count, fraction=None):
     """
     # Note: likely not the fastest way to do things below.
     train = interactions.copy().tocoo()
-    val = sp.lil_matrix(train.shape)
     test = sp.lil_matrix(train.shape)
 
     if fraction:
@@ -112,73 +111,69 @@ def train_test_split(interactions, split_count, fraction=None):
     train = train.tolil()
 
     for user in user_index:
-        val_test_interactions = np.random.choice(interactions.getrow(user).indices,
+        test_interactions = np.random.choice(interactions.getrow(user).indices,
                                         size=split_count,
                                         replace=False)
-        split = np.array_split(val_test_interactions, 2)
-        val_interactions = split[0]
-        test_interactions = split[1]
-        train[user, val_test_interactions] = 0.
+        train[user, test_interactions] = 0.
         # These are just 1.0 right now
-        val[user, val_interactions] = interactions[user, val_interactions]
         test[user, test_interactions] = interactions[user, test_interactions]
 
 
     # Test and training are truly disjoint
     assert(train.multiply(test).nnz == 0)
-    return train.tocsr(), val.tocsr(), test.tocsr(), user_index
+    return train.tocsr(), test.tocsr(), user_index
 
-def subset_to_matrix(interactions, uid_to_idx, mid_to_idx, ratings, subset):
+def main(spark):
+    '''Main routine for run for Storage optimization template.
+    Parameters
+    ----------
+    spark : SparkSession object
 
-    diff = ratings.merge(subset, how = 'outer' ,indicator=True).loc[lambda x : x['_merge']=='left_only']
-    user_list = diff['userId'].values
-    movie_list = diff['movieId'].values
+    '''
+    #####--------------YOUR CODE STARTS HERE--------------#####
 
-    sub_mat = interactions.copy().tolil()
+    #Use this template to as much as you want for your parquet saving and optimizations!
+    #schema='userId INT, movieId INT, rating DOUBLE, timestamp INT'
+    train = spark.read.option("header", False).csv(f'hdfs:/user/el3418/training_data.csv')
+    train = train.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
+    train = train.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', train['rating'].cast('float'))
+
+    test = spark.read.option("header", False).csv(f'hdfs:/user/el3418/test_data.csv')
+    test = test.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
+    test = test.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', test['rating'].cast('float'))
+
+    train_df = train.toPandas()
+    test_df = test.toPandas()
     
-    for user,movie in zip(user_list,movie_list):
-        uidx = uid_to_idx[user]
-        midx = mid_to_idx[movie]
-
-        sub_mat[uidx, midx] = 0.
-    
-    return sub_mat.tocsr()
-
-def main():
-
-    ratings = pd.read_csv(f'ratings_small.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
-    test_df = pd.read_csv(f'test_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
-    ratings = ratings[['userId','movieId']]
-    test_df = test_df[['userId', 'movieId']]
-
     likes, uid_to_idx, idx_to_uid,\
-    mid_to_idx, idx_to_mid = df_to_matrix(ratings, 'userId', 'movieId')
+    mid_to_idx, idx_to_mid = df_to_matrix(train_df, 'userId', 'movieId')
 
-    test = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, test_df)
+    likes2, uid_to_idx, idx_to_uid,\
+    mid_to_idx, idx_to_mid = df_to_matrix(test_df, 'userId', 'movieId')
 
-    train, val, test, user_index = train_test_split(likes, 5, fraction=0.2)
+    user_index_train = range(likes.shape[0])
+    user_index_test = range(likes2.shape[0])
 
-    eval_train = train.copy()
-    non_eval_users = list(set(range(train.shape[0])) - set(user_index))
+    eval_train = likes.copy()
+    non_eval_users = list(set(user_index_train) - set(user_index_test))
 
     eval_train = eval_train.tolil()
     for u in non_eval_users:
         eval_train[u, :] = 0.0
     eval_train = eval_train.tocsr()
 
-    model = LightFM(loss='warp')
-    # Initialize model.
-    model.fit(likes, epochs=10)
-    train_precision = precision_at_k(model, eval_train, k=100).mean()
-    val_precision = precision_at_k(model, val, k=100).mean()
-    test_precision = precision_at_k(model, test, k=100).mean()
-    print(train_precision)
-    print(val_precision)
-    print(test_precision)
+    print("train: ", user_index_train)
+    print("test: ", user_index_test)
+    print("eval_train: ", eval_train)
 
+# Only enter this block if we're in main
 if __name__ == "__main__":
+
+    # Create the spark session object
+    spark = SparkSession.builder.appName('split').getOrCreate()
 
     #If you wish to command line arguments, look into the sys library(primarily sys.argv)
     #Details are here: https://docs.python.org/3/library/sys.html
     #If using command line arguments, be sure to add them to main function
-    main()
+
+    main(spark)
