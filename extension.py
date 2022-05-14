@@ -147,29 +147,25 @@ def subset_to_matrix(interactions, uid_to_idx, mid_to_idx, ratings, subset):
 def main():
 
     ratings = pd.read_csv(f'ratings_small.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
+    train_df = pd.read_csv(f'training_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
+    val_df = pd.read_csv(f'validation_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
     test_df = pd.read_csv(f'test_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
+
     ratings = ratings[['userId','movieId']]
+    train_df = train_df[['userId', 'movieId']]
+    val_df = val_df[['userId', 'movieId']]
     test_df = test_df[['userId', 'movieId']]
 
-    likes, uid_to_idx, idx_to_uid,\
-    mid_to_idx, idx_to_mid = df_to_matrix(ratings, 'userId', 'movieId')
+    likes, uid_to_idx, idx_to_uid, mid_to_idx, idx_to_mid = df_to_matrix(ratings, 'userId', 'movieId')
 
+    train = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, train_df)
+    val = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, val_df)
     test = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, test_df)
-
-    train, val, test, user_index = train_test_split(likes, 5, fraction=0.2)
-
-    eval_train = train.copy()
-    non_eval_users = list(set(range(train.shape[0])) - set(user_index))
-
-    eval_train = eval_train.tolil()
-    for u in non_eval_users:
-        eval_train[u, :] = 0.0
-    eval_train = eval_train.tocsr()
-
+    
     model = LightFM(loss='warp')
     # Initialize model.
-    model.fit(likes, epochs=10)
-    train_precision = precision_at_k(model, eval_train, k=100).mean()
+    model.fit(train, epochs=10)
+    train_precision = precision_at_k(model, train, k=100).mean()
     val_precision = precision_at_k(model, val, k=100).mean()
     test_precision = precision_at_k(model, test, k=100).mean()
     print(train_precision)
