@@ -13,7 +13,7 @@ def main(spark):
 
     #Use this template to as much as you want for your parquet saving and optimizations!
     #schema='userId INT, movieId INT, rating DOUBLE, timestamp INT'
-    ratings = spark.read.option("header",True).csv(f'hdfs:/user/el3418/ml-latest/ratings.csv')
+    ratings = spark.read.option("header",True).csv(f'hdfs:/user/el3418/ml-latest-small/ratings.csv')
     print('ratings.csv schema')
     ratings.printSchema()
 
@@ -22,10 +22,17 @@ def main(spark):
     print(len(list(ratings.select('userId').distinct().toPandas()['userId'])))
 
     #Split uniqueIds based on index slicing
-    uniqueIds = list(ratings.select('userId').distinct().toPandas()['userId'])
-    train = uniqueIds[:180000]
-    validation = uniqueIds[180000:230000]
-    test = uniqueIds[230000:]
+    uniqueIds = list(ratings.select('userId').distinct().toPandas()['userId'].sort_values())
+    train = uniqueIds[:400]
+    validation = uniqueIds[400:500]
+    test = uniqueIds[500:]
+
+    print("--------------Train------------------")
+    print(train)
+    print("---------------Val----------------")
+    print(validation)
+    print("----------------Test------------------")
+    print(test)
 
     #Create a new column in the dataframe. Every row will have value 'train' for userId in the train list, 'validation' for userId in the validation list, and 'test' for userId in the test list
     ratings2 = ratings.withColumn("train_val_test", when(col("userId").isin(train),lit("train")).when(col("userId").isin(validation), lit("validation")).otherwise(lit("test")))
@@ -41,9 +48,9 @@ def main(spark):
     test_data = exceptAll_df.where(exceptAll_df["train_val_test"] == "test")
 
     #Save to HDFS
-    training_data.write.csv('training_data_large.csv')
-    validation_data.write.csv('validation_data_large.csv')
-    test_data.write.csv('test_data_large.csv')
+    #training_data.write.csv('training_data_large.csv')
+    #validation_data.write.csv('validation_data_large.csv')
+    #test_data.write.csv('test_data_large.csv')
 
     #Get count of results
     training_data.groupBy('train_val_test').count().orderBy('train_val_test').show()

@@ -74,60 +74,6 @@ def df_to_matrix(df, row_name, col_name):
     interactions = interactions.tocsr()
     return interactions, rid_to_idx, idx_to_rid, cid_to_idx, idx_to_cid
 
-def train_test_split(interactions, split_count, fraction=None):
-    """
-    Split recommendation data into train and test sets
-    Params
-    ------
-    interactions : scipy.sparse matrix
-        Interactions between users and items.
-    split_count : int
-        Number of user-item-interactions per user to move
-        from training to test set.
-    fractions : float
-        Fraction of users to split off some of their
-        interactions into test set. If None, then all
-        users are considered.
-    """
-    # Note: likely not the fastest way to do things below.
-    train = interactions.copy().tocoo()
-    val = sp.lil_matrix(train.shape)
-    test = sp.lil_matrix(train.shape)
-
-    if fraction:
-        try:
-            user_index = np.random.choice(
-                np.where(np.bincount(train.row) >= split_count * 2)[0],
-                replace=False,
-                size=np.int64(np.floor(fraction * train.shape[0]))
-            ).tolist()
-        except:
-            print(('Not enough users with > {} '
-                  'interactions for fraction of {}')\
-                  .format(2*split_count, fraction))
-            raise
-    else:
-        user_index = range(train.shape[0])
-
-    train = train.tolil()
-
-    for user in user_index:
-        val_test_interactions = np.random.choice(interactions.getrow(user).indices,
-                                        size=split_count,
-                                        replace=False)
-        split = np.array_split(val_test_interactions, 2)
-        val_interactions = split[0]
-        test_interactions = split[1]
-        train[user, val_test_interactions] = 0.
-        # These are just 1.0 right now
-        val[user, val_interactions] = interactions[user, val_interactions]
-        test[user, test_interactions] = interactions[user, test_interactions]
-
-
-    # Test and training are truly disjoint
-    assert(train.multiply(test).nnz == 0)
-    return train.tocsr(), val.tocsr(), test.tocsr(), user_index
-
 def subset_to_matrix(interactions, uid_to_idx, mid_to_idx, ratings, subset):
 
     diff = ratings.merge(subset, how = 'outer' ,indicator=True).loc[lambda x : x['_merge']=='left_only']
@@ -145,11 +91,16 @@ def subset_to_matrix(interactions, uid_to_idx, mid_to_idx, ratings, subset):
     return sub_mat.tocsr()
 
 def main():
+    colnames=['userId', 'movieId', 'rating', 'timestamp']
+    ratings = pd.read_csv(f'ratings_small.csv', names=colnames)
+    train_df = pd.read_csv(f'new_train_small.csv')
+    val_df = pd.read_csv(f'new_val_small.csv')
+    test_df = pd.read_csv(f'new_test_small.csv')
 
-    ratings = pd.read_csv(f'ratings_small.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
-    train_df = pd.read_csv(f'training_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
-    val_df = pd.read_csv(f'validation_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
-    test_df = pd.read_csv(f'test_data.csv', names=['userId', 'movieId', 'rating', 'timestamp', 'split'])
+    train_df.reset_index(inplace=True)
+
+    print(ratings.head())
+    print(train_df.head())
 
     ratings = ratings[['userId','movieId']]
     train_df = train_df[['userId', 'movieId']]
@@ -161,6 +112,10 @@ def main():
     train = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, train_df)
     val = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, val_df)
     test = subset_to_matrix(likes, uid_to_idx, mid_to_idx, ratings, test_df)
+
+    assert(train.multiply(val).nnz == 0)
+    assert(train.multiply(test).nnz == 0)
+    assert(val.multiply(test).nnz == 0)
     
     model = LightFM(loss='warp')
     # Initialize model.

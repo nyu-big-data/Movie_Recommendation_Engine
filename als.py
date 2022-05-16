@@ -7,17 +7,17 @@ from pyspark.sql.functions import col, mean, collect_list
 
 def main(spark, crossValidate=False):
 
-    train = spark.read.option("header", False).csv(f'hdfs:/user/el3418/training_data_large.csv')
-    train = train.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    train = train.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', train['rating'].cast('float'))
+    train = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_train_small.csv')
+    #train = train.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
+    train = train.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
 
-    val = spark.read.option("header", False).csv(f'hdfs:/user/el3418/validation_data_large.csv')
-    val = val.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    val = val.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', val['rating'].cast('float'))
+    val = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_val_small.csv')
+    #val = val.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
+    val = val.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
 
-    test = spark.read.option("header", False).csv(f'hdfs:/user/el3418/test_data_large.csv')
-    test = test.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    test = test.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', test['rating'].cast('float'))
+    test = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_test_small.csv')
+    #test = test.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
+    test = test.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
 
     als = ALS(
         rank=100,
