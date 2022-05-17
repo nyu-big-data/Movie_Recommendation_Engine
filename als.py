@@ -4,20 +4,34 @@ from pyspark.mllib.evaluation import RegressionMetrics, RankingMetrics
 from pyspark.ml.recommendation import ALS
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 from pyspark.sql.functions import col, mean, collect_list
+import time
+from sklearn.metrics import average_precision_score
+
+def mAP(top_k_recommendations, user_labels):
+    ap = 0
+    for movie_id in user_labels:
+        running_sum = 0
+        for rank, r in enumerate(top_k_recommendations):
+            if r == movie_id:
+                running_sum = 1 + 1/(rank+1)
+                break 
+        ap += (running_sum/len(top_k_recommendations))
+    
+    return ap/len(user_labels)
 
 def main(spark, crossValidate=False):
 
-    train = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_train_small.csv')
-    #train = train.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    train = train.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
+    train = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_train_large.csv')
+    train = train.toDF('userId', 'movieId', 'rating', 'timestamp')
+    train = train.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', col('rating').cast('float'))
 
-    val = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_val_small.csv')
-    #val = val.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    val = val.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
+    val = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_val_large.csv')
+    val = val.toDF('userId', 'movieId', 'rating', 'timestamp')
+    val = val.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', col('rating').cast('float'))
 
-    test = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_test_small.csv')
-    #test = test.toDF('userId', 'movieId', 'rating', 'timestamp', 'split')
-    test = test.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer'))
+    test = spark.read.option("header", True).csv(f'hdfs:/user/el3418/new_test_large.csv')
+    test = test.toDF('userId', 'movieId', 'rating', 'timestamp')
+    test = test.withColumn('userId', col('userId').cast('integer')).withColumn('movieId', col('movieId').cast('integer')).withColumn('rating', col('rating').cast('float'))
 
     als = ALS(
         rank=100,
@@ -69,13 +83,27 @@ def main(spark, crossValidate=False):
 
         nrecommendations = best_model.recommendForAllUsers(100)
     else:
+        start = time.process_time()
         model = als.fit(train)
+        end = time.process_time()
+        elapsed_time = end - start
+        print("Time to fit model: ", elapsed_time)
+
+        start = time.process_time()
+        test_predictions = model.transform(test)
 
         #Output in the form user | [[array,of,movie,ids,being,recommended]]
         nrecommendations = model.recommendForAllUsers(100)
+        end = time.process_time()
+        elapsed_time = end - start
+        print("Time to transform and give recommendations: ", elapsed_time)
             
     #test_predictions = model.transform(test)
+    start = time.process_time()
     RMSE = evaluator.evaluate(test_predictions)
+    end = time.process_time()
+    elapsed_time = end - start
+    print("Time to calculate RMSE: ", elapsed_time)
     print(RMSE)
 
     #Uncomment for per-movie rows
@@ -94,18 +122,15 @@ def main(spark, crossValidate=False):
     movies_list.limit(10).show()
     joined_col = movies_list.join(nrecommendations, ["userId"])
     dropped_cols = joined_col.drop("userId")
+
+    dropped_cols.show()
     
-    # define a list
-    l=[]
-
-    # convert to tuple and append to list
-    for i in dropped_cols.collect():
-        l.append(tuple(i))
-
-    predictionAndLabels = spark.sparkContext.parallelize(l)
-    metrics = RankingMetrics(predictionAndLabels)
-    print(metrics.meanAveragePrecisionAt(100))
-
+    rdd=dropped_cols.rdd.map(lambda x: 
+        (x[0],x[1],mAP(x[0],x[1]))
+        ) 
+    result_df = rdd.toDF(["movies_list", "recommendations", "precision"])
+    
+    print(result_df.select(mean('precision')).collect())
 
 if __name__ == "__main__":
 
