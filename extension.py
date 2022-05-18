@@ -7,45 +7,44 @@ import scipy.sparse as sp
 
 def get_df_matrix_mappings(df, row_name, col_name):
     """
-    Obtain mappings of interactions between row (matrix) item and column (matrix) item. 
+    Obtain mappings of interactions between userId (row) item and movieId (column) item. 
 
     Parameters
     ----------
     df : DataFrame
         Interactions DataFrame.
     row_name : str
-        Name of column in df which contains row entities.
+        Name of column in df which contains user IDs.
     col_name : str
-        Name of column in df which contains column entities.
+        Name of column in df which contains movie IDs.
 
     Returns
     -------
-    rid_to_idx : dict
-        Mapping from Row IDs -> Rows Indices 
-    idx_to_rid : dict
-        Mapping from Rows Indices -> Row IDs
-    cid_to_idx : dict
-        Mapping from Column IDs -> Column Indices 
-    idx_to_cid : dict
-        Mapping from Column Indices -> Column IDs
+    uid_to_idx : dict
+        Mapping from (userId) Row IDs -> Rows Indices 
+    idx_to_uid : dict
+        Mapping from (userId) Rows Indices -> Row IDs
+    mid_to_idx : dict
+        Mapping from (movieId) Column IDs -> Column Indices 
+    idx_to_mid : dict
+        Mapping from (movieId) Column Indices -> Column IDs
 
     """
 
-
     # Create mappings
-    rid_to_idx = {}
-    idx_to_rid = {}
-    for (idx, rid) in enumerate(df[row_name].unique().tolist()):
-        rid_to_idx[rid] = idx
-        idx_to_rid[idx] = rid
+    uid_to_idx = {}
+    idx_to_uid = {}
+    for (idx, uid) in enumerate(df[row_name].unique().tolist()):
+        uid_to_idx[uid] = idx
+        idx_to_uid[idx] = uid
 
-    cid_to_idx = {}
-    idx_to_cid = {}
-    for (idx, cid) in enumerate(df[col_name].unique().tolist()):
-        cid_to_idx[cid] = idx
-        idx_to_cid[idx] = cid
+    mid_to_idx = {}
+    idx_to_mid = {}
+    for (idx, mid) in enumerate(df[col_name].unique().tolist()):
+        mid_to_idx[mid] = idx
+        idx_to_mid[idx] = mid
 
-    return rid_to_idx, idx_to_rid, cid_to_idx, idx_to_cid
+    return uid_to_idx, idx_to_uid, mid_to_idx, idx_to_mid
 
 
 def df_to_matrix(df, row_name, col_name):
@@ -61,29 +60,45 @@ def df_to_matrix(df, row_name, col_name):
     Returns
     -------
     interactions : Sparse Matrix
-    rid_to_idx : dict
-        Mapping from Row IDs -> Rows Indices 
-    idx_to_rid : dict
-        Mapping from Rows Indices -> Row IDs
-    cid_to_idx : dict
-        Mapping from Column IDs -> Column Indices 
-    idx_to_cid : dict
-        Mapping from Column Indices -> Column IDs
+    uid_to_idx : dict
+        Mapping from (userId) Row IDs -> Rows Indices 
+    idx_to_uid : dict
+        Mapping from (userId) Rows Indices -> Row IDs
+    mid_to_idx : dict
+        Mapping from (movieId) Column IDs -> Column Indices 
+    idx_to_mid : dict
+        Mapping from (movieId) Column Indices -> Column IDs
     """
 
-    rid_to_idx, idx_to_rid, cid_to_idx, idx_to_cid = get_df_matrix_mappings(df, row_name, col_name)
+    uid_to_idx, idx_to_uid, mid_to_idx, idx_to_mid = get_df_matrix_mappings(df, row_name, col_name)
 
     def map_ids(row, mapper):
         return mapper[row]
 
-    I = df[row_name].apply(map_ids, args=[rid_to_idx]).to_numpy()
-    J = df[col_name].apply(map_ids, args=[cid_to_idx]).to_numpy()
+    I = df[row_name].apply(map_ids, args=[uid_to_idx]).to_numpy()
+    J = df[col_name].apply(map_ids, args=[mid_to_idx]).to_numpy()
     V = np.ones(I.shape[0])
     interactions = sp.coo_matrix((V, (I, J)), dtype=np.float64)
     interactions = interactions.tocsr()
-    return interactions, rid_to_idx, idx_to_rid, cid_to_idx, idx_to_cid
+    return interactions, uid_to_idx, idx_to_uid, mid_to_idx, idx_to_mid
 
 def subset_to_matrix(interactions, uid_to_idx, mid_to_idx, ratings, subset):
+    """
+    Obtains the sparse matrix with interaction from the dataframe
+
+    Parameters
+    ----------
+    interactions : Sparse Matrix
+    uid_to_idx : dict
+    mid_to_idx : dict
+    ratings: DataFrame
+    subset: DataFrame
+
+    Returns
+    -------
+    sub_mat : Sparse Matrix
+        Sparse Matrix of Train/Val/Test
+    """
 
     diff = ratings.merge(subset, how = 'outer' ,indicator=True).loc[lambda x : x['_merge']=='left_only']
     user_list = diff['userId'].values
