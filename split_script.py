@@ -1,3 +1,5 @@
+#OLD VERSION - NEW VERSION IS new_split_script.py
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import countDistinct
 from pyspark.sql.functions import when, lit, col
